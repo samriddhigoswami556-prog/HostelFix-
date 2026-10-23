@@ -87,10 +87,16 @@ function Login() {
             }
 
         } catch (error) {
-            setError(
-                error.response?.data?.message ||
-                "Authentication failed. Please verify credentials."
-            );
+            if (!error.response) {
+                setError(
+                    "Cannot reach backend server. Please make sure 'node server.js' is running on port 5000!"
+                );
+            } else {
+                setError(
+                    error.response?.data?.message ||
+                    "Invalid email or password. Please verify credentials."
+                );
+            }
         } finally {
             setLoading(false);
         }
