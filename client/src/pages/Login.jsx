@@ -12,6 +12,43 @@ function Login() {
 
     const navigate = useNavigate();
 
+    // Sample logins for faculty evaluation
+    const demoAccounts = [
+        {
+            label: "Student 1 (Aarav - Room B-304)",
+            role: "student",
+            badgeColor: "#3b82f6",
+            badgeBg: "#eff6ff",
+            email: "student@hostelfix.com",
+            password: "Student12345",
+            icon: "🎓"
+        },
+        {
+            label: "Student 2 (Priya - Room A-102)",
+            role: "student",
+            badgeColor: "#059669",
+            badgeBg: "#ecfdf5",
+            email: "priya@hostelfix.com",
+            password: "Student12345",
+            icon: "🎓"
+        },
+        {
+            label: "Hostel Staff / Warden",
+            role: "staff",
+            badgeColor: "#d97706",
+            badgeBg: "#fffbeb",
+            email: "staff@hostelfix.com",
+            password: "Staff12345",
+            icon: "🛠️"
+        }
+    ];
+
+    const handleFillDemo = (acc) => {
+        setEmail(acc.email);
+        setPassword(acc.password);
+        setError("");
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setError("");
@@ -61,7 +98,7 @@ function Login() {
 
     return (
         <div className="hf-auth-page">
-            <div className="hf-auth-card">
+            <div className="hf-auth-card" style={{ maxWidth: "460px" }}>
                 <div className="hf-auth-logo">
                     <div className="hf-logo-icon" style={{ marginBottom: "12px", width: "45px", height: "45px", borderRadius: "12px" }}>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -106,6 +143,71 @@ function Login() {
                             <button className="hf-auth-button" type="submit" disabled={loading}>
                                 {loading ? "Logging in..." : "Log In"}
                             </button>
+
+                            {/* DEMO / SAMPLE LOGINS FOR FACULTY EVALUATION */}
+                            <div style={{
+                                marginTop: "20px",
+                                padding: "14px",
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "12px",
+                                textAlign: "left"
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                                    <span style={{ fontSize: "14px" }}>⚡</span>
+                                    <span style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "#475569" }}>
+                                        Sample Logins (Click to Auto-Fill):
+                                    </span>
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                    {demoAccounts.map((acc, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={() => handleFillDemo(acc)}
+                                            style={{
+                                                padding: "8px 10px",
+                                                background: "#ffffff",
+                                                border: "1px solid #cbd5e1",
+                                                borderRadius: "8px",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center",
+                                                transition: "all 0.2s ease"
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.borderColor = acc.badgeColor;
+                                                e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.06)";
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.borderColor = "#cbd5e1";
+                                                e.currentTarget.style.boxShadow = "none";
+                                            }}
+                                        >
+                                            <div>
+                                                <div style={{ fontSize: "12px", fontWeight: "600", color: "#1e293b", display: "flex", alignItems: "center", gap: "4px" }}>
+                                                    <span>{acc.icon}</span> {acc.label}
+                                                </div>
+                                                <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                                    {acc.email} | <span style={{ fontFamily: "monospace" }}>{acc.password}</span>
+                                                </div>
+                                            </div>
+                                            <span style={{
+                                                fontSize: "11px",
+                                                fontWeight: "600",
+                                                padding: "2px 8px",
+                                                borderRadius: "12px",
+                                                color: acc.badgeColor,
+                                                background: acc.badgeBg,
+                                                border: `1px solid ${acc.badgeColor}33`
+                                            }}>
+                                                Use
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </>
                     ) : (
                         <>
