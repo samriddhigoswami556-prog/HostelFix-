@@ -13,13 +13,37 @@ function StudentDashboard() {
     const [statusFilter, setStatusFilter] = useState("All");
     const [categoryFilter, setCategoryFilter] = useState("All");
 
-    const user = JSON.parse(localStorage.getItem("user"));
+    // MFA Modal and State
+    const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "{}"));
+    const [isMfaEnabled, setIsMfaEnabled] = useState(user?.isMfaEnabled || false);
+    const [mfaModalOpen, setMfaModalOpen] = useState(false);
+    const [mfaQrCode, setMfaQrCode] = useState("");
+    const [mfaSecret, setMfaSecret] = useState("");
+    const [totpInput, setTotpInput] = useState("");
+    const [mfaMessage, setMfaMessage] = useState("");
+    const [mfaError, setMfaError] = useState("");
+    const [mfaActionLoading, setMfaActionLoading] = useState(false);
+    const [disablePassword, setDisablePassword] = useState("");
 
     useEffect(() => {
-        const fetchComplaints = async () => {
+        const fetchDashboardData = async () => {
             try {
-                const response = await API.get("/complaints");
-                setComplaints(response.data);
+                const [complaintsRes, profileRes] = await Promise.allSettled([
+                    API.get("/complaints"),
+                    API.get("/auth/me")
+                ]);
+
+                if (complaintsRes.status === "fulfilled") {
+                    setComplaints(complaintsRes.value.data);
+                }
+
+                if (profileRes.status === "fulfilled") {
+                    const profile = profileRes.value.data;
+                    setIsMfaEnabled(profile.isMfaEnabled);
+                    const updatedUser = { ...user, isMfaEnabled: profile.isMfaEnabled };
+                    setUser(updatedUser);
+                    localStorage.setItem("user", JSON.stringify(updatedUser));
+                }
             } catch (error) {
                 console.error(error);
                 if (error.response?.status === 401) {
@@ -31,12 +55,76 @@ function StudentDashboard() {
             }
         };
 
-        fetchComplaints();
+        fetchDashboardData();
     }, [navigate]);
 
     const handleLogout = () => {
         localStorage.clear();
         navigate("/login");
+    };
+
+    // Open MFA Setup
+    const handleOpenMfaModal = async () => {
+        setMfaModalOpen(true);
+        setMfaMessage("");
+        setMfaError("");
+        setTotpInput("");
+
+        if (!isMfaEnabled) {
+            setMfaActionLoading(true);
+            try {
+                const res = await API.post("/auth/mfa/setup");
+                setMfaQrCode(res.data.qrCode);
+                setMfaSecret(res.data.secret);
+            } catch (err) {
+                setMfaError(err.response?.data?.message || "Failed to initiate MFA setup");
+            } finally {
+                setMfaActionLoading(false);
+            }
+        }
+    };
+
+    // Verify and enable MFA
+    const handleVerifyMfa = async (e) => {
+        e.preventDefault();
+        setMfaError("");
+        setMfaActionLoading(true);
+
+        try {
+            const res = await API.post("/auth/mfa/verify", { totpCode: totpInput });
+            setIsMfaEnabled(true);
+            setMfaMessage("Two-factor authentication successfully enabled!");
+            const updatedUser = { ...user, isMfaEnabled: true };
+            setUser(updatedUser);
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+        } catch (err) {
+            setMfaError(err.response?.data?.message || "Invalid 6-digit code. Please check your authenticator app.");
+        } finally {
+            setMfaActionLoading(false);
+        }
+    };
+
+    // Disable MFA
+    const handleDisableMfa = async (e) => {
+        e.preventDefault();
+        setMfaError("");
+        setMfaActionLoading(true);
+
+        try {
+            await API.post("/auth/mfa/disable", { password: disablePassword });
+            setIsMfaEnabled(false);
+            setMfaQrCode("");
+            setMfaSecret("");
+            setDisablePassword("");
+            setMfaMessage("Two-factor authentication has been disabled.");
+            const updatedUser = { ...user, isMfaEnabled: false };
+            setUser(updatedUser);
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+        } catch (err) {
+            setMfaError(err.response?.data?.message || "Failed to disable MFA. Please check password.");
+        } finally {
+            setMfaActionLoading(false);
+        }
     };
 
     // Calculate stats
@@ -75,7 +163,26 @@ function StudentDashboard() {
                     </div>
                     <span>HostelFix</span>
                 </div>
-                <div className="hf-user-area">
+                <div className="hf-user-area" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <button
+                        onClick={handleOpenMfaModal}
+                        style={{
+                            background: isMfaEnabled ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                            color: isMfaEnabled ? "#059669" : "#dc2626",
+                            border: `1px solid ${isMfaEnabled ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                            borderRadius: "20px",
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px"
+                        }}
+                    >
+                        <span>{isMfaEnabled ? "🛡️ 2FA Enabled" : "⚠️ Enable 2FA"}</span>
+                    </button>
+
                     <span className="hf-user">
                         <span style={{ fontSize: "16px" }}>👋</span>
                         <span>{user?.name}</span>
@@ -91,17 +198,19 @@ function StudentDashboard() {
             <div className="hf-page">
                 <div className="hf-container">
                     {/* HEADING */}
-                    <div className="hf-heading" style={{ display: "flex", justifyContent: "between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+                    <div className="hf-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
                         <div style={{ flex: 1 }}>
                             <h1>Student Dashboard</h1>
                             <p>Submit and monitor complaints for Room {user?.roomNumber}.</p>
                         </div>
-                        <button className="hf-btn hf-btn-primary" onClick={() => navigate("/complaints/new")}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            New Complaint
-                        </button>
+                        <div style={{ display: "flex", gap: "12px" }}>
+                            <button className="hf-btn hf-btn-primary" onClick={() => navigate("/complaints/new")}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                New Complaint
+                            </button>
+                        </div>
                     </div>
 
                     {/* STATS */}
@@ -256,6 +365,143 @@ function StudentDashboard() {
                     )}
                 </div>
             </div>
+
+            {/* MFA MODAL */}
+            {mfaModalOpen && (
+                <div style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: "rgba(0, 0, 0, 0.6)",
+                    backdropFilter: "blur(4px)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 1000,
+                    padding: "20px"
+                }}>
+                    <div style={{
+                        background: "#ffffff",
+                        borderRadius: "16px",
+                        maxWidth: "480px",
+                        width: "100%",
+                        padding: "28px",
+                        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+                        position: "relative"
+                    }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                            <h2 style={{ margin: 0, fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span>🔐</span> Two-Factor Authentication (TOTP)
+                            </h2>
+                            <button
+                                onClick={() => setMfaModalOpen(false)}
+                                style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#9ca3af" }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {mfaMessage && (
+                            <div style={{ padding: "10px 14px", background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", borderRadius: "8px", marginBottom: "14px", fontSize: "14px" }}>
+                                ✅ {mfaMessage}
+                            </div>
+                        )}
+
+                        {mfaError && (
+                            <div style={{ padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "8px", marginBottom: "14px", fontSize: "14px" }}>
+                                ⚠️ {mfaError}
+                            </div>
+                        )}
+
+                        {isMfaEnabled ? (
+                            <div>
+                                <div style={{ textAlign: "center", padding: "16px", background: "#f0fdf4", borderRadius: "12px", border: "1px solid #bbf7d0", marginBottom: "18px" }}>
+                                    <div style={{ fontSize: "36px", marginBottom: "6px" }}>🛡️</div>
+                                    <h3 style={{ margin: "0 0 4px 0", color: "#166534" }}>Account is MFA Protected</h3>
+                                    <p style={{ margin: 0, fontSize: "13px", color: "#15803d" }}>
+                                        Every login requires a 6-digit TOTP code from Google or Microsoft Authenticator.
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleDisableMfa} style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                                    <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "10px" }}>
+                                        To disable 2FA, confirm your account password:
+                                    </p>
+                                    <input
+                                        type="password"
+                                        placeholder="Enter password"
+                                        className="hf-input"
+                                        value={disablePassword}
+                                        onChange={(e) => setDisablePassword(e.target.value)}
+                                        required
+                                        style={{ marginBottom: "12px" }}
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="hf-btn"
+                                        disabled={mfaActionLoading}
+                                        style={{ width: "100%", background: "#ef4444", color: "#ffffff", border: "none" }}
+                                    >
+                                        {mfaActionLoading ? "Processing..." : "Disable Two-Factor Authentication"}
+                                    </button>
+                                </form>
+                            </div>
+                        ) : (
+                            <div>
+                                <p style={{ fontSize: "14px", color: "#4b5563", marginTop: 0, lineHeight: 1.5 }}>
+                                    Protect your HostelFix account with Google or Microsoft Authenticator.
+                                </p>
+
+                                {mfaActionLoading && !mfaQrCode ? (
+                                    <div style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>Generating QR code...</div>
+                                ) : (
+                                    <>
+                                        {mfaQrCode && (
+                                            <div style={{ textAlign: "center", margin: "16px 0" }}>
+                                                <img
+                                                    src={mfaQrCode}
+                                                    alt="Authenticator QR Code"
+                                                    style={{ width: "170px", height: "170px", border: "2px solid #e5e7eb", borderRadius: "10px", padding: "6px" }}
+                                                />
+                                                <div style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>
+                                                    Secret Key: <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px" }}>{mfaSecret}</code>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <form onSubmit={handleVerifyMfa}>
+                                            <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                                                Enter 6-digit Authenticator Code:
+                                            </label>
+                                            <input
+                                                type="text"
+                                                maxLength="6"
+                                                pattern="\d{6}"
+                                                placeholder="123456"
+                                                className="hf-input"
+                                                value={totpInput}
+                                                onChange={(e) => setTotpInput(e.target.value)}
+                                                required
+                                                style={{ textAlign: "center", letterSpacing: "4px", fontSize: "18px", fontWeight: "bold", marginBottom: "14px" }}
+                                            />
+                                            <button
+                                                type="submit"
+                                                className="hf-btn hf-btn-primary"
+                                                disabled={mfaActionLoading}
+                                                style={{ width: "100%" }}
+                                            >
+                                                {mfaActionLoading ? "Verifying..." : "Verify & Activate 2FA"}
+                                            </button>
+                                        </form>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

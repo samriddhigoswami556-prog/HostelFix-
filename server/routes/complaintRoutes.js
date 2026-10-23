@@ -1,6 +1,7 @@
 const express = require("express");
 const Complaint = require("../models/Complaint");
 const protect = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 const router = express.Router();
 
 // CREATE complaint
@@ -63,15 +64,11 @@ router.get("/:id", protect, async (req, res) => {
         });
     }
 });
-// UPDATE complaint
-router.put("/:id", protect, async (req, res) => {
+// UPDATE complaint (Restricted to staff/admin role e.g. supervisor/warden)
+router.put("/:id", protect, authorizeRoles("staff", "admin"), async (req, res) => {
     try {
-
-        const complaint = await Complaint.findOneAndUpdate(
-            {
-                _id: req.params.id,
-                studentId: req.user.userId
-            },
+        const complaint = await Complaint.findByIdAndUpdate(
+            req.params.id,
             req.body,
             {
                 new: true,
@@ -81,7 +78,7 @@ router.put("/:id", protect, async (req, res) => {
 
         if (!complaint) {
             return res.status(404).json({
-                message: "Complaint not found or you are not authorized"
+                message: "Complaint not found"
             });
         }
 
@@ -94,23 +91,21 @@ router.put("/:id", protect, async (req, res) => {
         });
     }
 });
-// DELETE complaint
-router.delete("/:id", protect, async (req, res) => {
-    try {
 
-        const complaint = await Complaint.findOneAndDelete({
-            _id: req.params.id,
-            studentId: req.user.userId
-        });
+// DELETE complaint (Restricted to admin/supervisor role)
+router.delete("/:id", protect, authorizeRoles("admin", "staff"), async (req, res) => {
+    try {
+        const complaint = await Complaint.findByIdAndDelete(req.params.id);
 
         if (!complaint) {
             return res.status(404).json({
-                message: "Complaint not found or you are not authorized"
+                message: "Complaint not found"
             });
         }
 
         res.status(200).json({
-            message: "Complaint deleted successfully"
+            message: "Complaint deleted successfully",
+            deletedId: req.params.id
         });
 
     } catch (error) {

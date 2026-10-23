@@ -1,15 +1,16 @@
-const allowRoles = (...roles) => {
+const authorizeRoles = (...roles) => {
     return (req, res, next) => {
-
         if (!req.user) {
             return res.status(401).json({
-                message: "Not authenticated"
+                message: "Authentication required: No token provided"
             });
         }
 
         if (!roles.includes(req.user.role)) {
             return res.status(403).json({
-                message: "Access denied"
+                message: "Access denied: You do not have permission to perform this action",
+                requiredRoles: roles,
+                userRole: req.user.role
             });
         }
 
@@ -17,4 +18,4 @@ const allowRoles = (...roles) => {
     };
 };
 
-module.exports = allowRoles;
+module.exports = authorizeRoles;

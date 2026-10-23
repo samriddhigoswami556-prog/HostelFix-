@@ -30,6 +30,16 @@ const userSchema = new mongoose.Schema(
 
         phone: {
             type: String
+        },
+
+        isMfaEnabled: {
+            type: Boolean,
+            default: false
+        },
+
+        mfaSecret: {
+            type: String,
+            default: null
         }
     },
     {

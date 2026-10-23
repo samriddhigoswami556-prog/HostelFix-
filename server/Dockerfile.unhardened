@@ -1,0 +1,24 @@
+# ==========================================================
+# UNHARDENED DOCKERFILE (For Assignment 3 Security Baseline)
+# Base Image: node:20 (Debian full base image ~1.1 GB)
+# Vulnerabilities: Default root user, excess build packages
+# ==========================================================
+
+FROM node:20
+
+# Running as root user (Security vulnerability)
+USER root
+
+WORKDIR /app
+
+# Copy all files including source
+COPY package*.json ./
+
+# Install all dependencies including dev tools
+RUN npm install
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["node", "server.js"]
